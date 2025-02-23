@@ -1,6 +1,8 @@
 /* eslint-disable no-await-in-loop */
 /* eslint-disable no-restricted-syntax */
 import { Button, Container, Grid, MenuItem, Select, Stack } from '@mui/material';
+import Backdrop from '@mui/material/Backdrop';
+import CircularProgress from '@mui/material/CircularProgress';
 import Dialog from '@mui/material/Dialog';
 import DialogContent from '@mui/material/DialogContent';
 import { sentenceCase } from 'change-case';
@@ -144,9 +146,16 @@ export default function ResponsiveDialog() {
   };
 
   const uplodPhoto = async (event, index) => {
-    const selectedFile = event.target.files[0];
+    handleOpenImageUploading();
 
-    if (selectedFile) {
+    try {
+      const selectedFile = event.target.files[0];
+
+      if (!selectedFile) {
+        console.warn('No file selected');
+        return;
+      }
+
       console.log('Selected file:', selectedFile);
 
       const formData = new FormData();
@@ -156,15 +165,22 @@ export default function ResponsiveDialog() {
 
       const response = await uploadItemMasterImageService(user, formData);
 
+      if (!response?.data?.value) {
+        throw new Error('Invalid response from server');
+      }
+
       const imageFilename = response.data.value;
+
       console.log(event.target.name);
       if (event.target.name === 'parent') {
-        const name = 'uploaded_filename';
-        setParentItem({ ...parentItem, [name]: imageFilename });
+        setParentItem((prev) => ({ ...prev, uploaded_filename: imageFilename }));
       } else {
-        const name = 'uploadedFilename';
-        handleInputChange(index, name, imageFilename);
+        handleInputChange(index, 'uploadedFilename', imageFilename);
       }
+    } catch (error) {
+      console.error('Image upload failed:', error);
+    } finally {
+      handleCloseImageUploading();
     }
   };
 
@@ -305,6 +321,14 @@ export default function ResponsiveDialog() {
     setOpen(false);
   };
 
+  const [openImageUploading, setImageUploading] = useState(false);
+  const handleOpenImageUploading = () => {
+    setImageUploading(true);
+  };
+  const handleCloseImageUploading = () => {
+    setImageUploading(false);
+  };
+
   const navigateToItemMaster = () => {
     navigate('/dashboard/items', { replace: true });
   };
@@ -401,7 +425,7 @@ export default function ResponsiveDialog() {
       </Stack>
 
       <Stack />
-      
+
       <Grid container spacing={2}>
         <Grid item xs={3} style={{ display: 'flex' }}>
           <Button
@@ -597,6 +621,14 @@ export default function ResponsiveDialog() {
           </Grid>
         </DialogContent>
       </Dialog>
+
+      <Backdrop
+        sx={(theme) => ({ color: '#fff', zIndex: theme.zIndex.drawer + 1 })}
+        open={openImageUploading}
+        // onClick={handleCloseImageUploading}
+      >
+        <CircularProgress color="inherit" />
+      </Backdrop>
     </Container>
   );
 }
