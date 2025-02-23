@@ -1,6 +1,10 @@
 /* eslint-disable no-await-in-loop */
 /* eslint-disable no-restricted-syntax */
 import { Button, Container, Grid, MenuItem, Select, Stack } from '@mui/material';
+import Backdrop from '@mui/material/Backdrop';
+import CircularProgress from '@mui/material/CircularProgress';
+import Dialog from '@mui/material/Dialog';
+import DialogContent from '@mui/material/DialogContent';
 import { sentenceCase } from 'change-case';
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -12,6 +16,9 @@ import {
   uploadItemMasterImageService,
 } from '../../../Services/ApiServices';
 import { useUser } from '../../../context/UserContext';
+
+// styles
+import '../../../_css/Utils.css';
 
 export default function ResponsiveDialog() {
   const navigate = useNavigate();
@@ -139,9 +146,16 @@ export default function ResponsiveDialog() {
   };
 
   const uplodPhoto = async (event, index) => {
-    const selectedFile = event.target.files[0];
+    handleOpenImageUploading();
 
-    if (selectedFile) {
+    try {
+      const selectedFile = event.target.files[0];
+
+      if (!selectedFile) {
+        console.warn('No file selected');
+        return;
+      }
+
       console.log('Selected file:', selectedFile);
 
       const formData = new FormData();
@@ -151,15 +165,22 @@ export default function ResponsiveDialog() {
 
       const response = await uploadItemMasterImageService(user, formData);
 
+      if (!response?.data?.value) {
+        throw new Error('Invalid response from server');
+      }
+
       const imageFilename = response.data.value;
+
       console.log(event.target.name);
       if (event.target.name === 'parent') {
-        const name = 'uploaded_filename';
-        setParentItem({ ...parentItem, [name]: imageFilename });
+        setParentItem((prev) => ({ ...prev, uploaded_filename: imageFilename }));
       } else {
-        const name = 'uploadedFilename';
-        handleInputChange(index, name, imageFilename);
+        handleInputChange(index, 'uploadedFilename', imageFilename);
       }
+    } catch (error) {
+      console.error('Image upload failed:', error);
+    } finally {
+      handleCloseImageUploading();
     }
   };
 
@@ -293,8 +314,24 @@ export default function ResponsiveDialog() {
 
   const filteredItemCategoriesOptions = itemCategories
     .filter((option) => option.segment2.toLowerCase().includes(inputValue.toLowerCase()))
-    // .map((option) => ({ value: option.segment1, label: option.segment1 }));
     .map((option) => ({ value: option.category_id, label: option.segment2 }));
+
+  const [open, setOpen] = useState(false);
+  const handleClose = () => {
+    setOpen(false);
+  };
+
+  const [openImageUploading, setImageUploading] = useState(false);
+  const handleOpenImageUploading = () => {
+    setImageUploading(true);
+  };
+  const handleCloseImageUploading = () => {
+    setImageUploading(false);
+  };
+
+  const navigateToItemMaster = () => {
+    navigate('/dashboard/items', { replace: true });
+  };
 
   return (
     <Container>
@@ -380,17 +417,23 @@ export default function ResponsiveDialog() {
               type="file"
               name="parent"
               className="form-control"
-              // defaultValue={parentItem.description}
               style={{ backgroundColor: 'white' }}
               onChange={(e) => uplodPhoto(e)}
             />
           </div>
         </Stack>
       </Stack>
-      {/* </Grid> */}
+
+      <Stack />
 
       <Grid container spacing={2}>
         <Grid item xs={3} style={{ display: 'flex' }}>
+          <Button
+            style={{ marginRight: '10px', backgroundColor: 'lightgray', color: 'black', whiteSpace: 'nowrap' }}
+            onClick={() => setOpen(true)}
+          >
+            Add Child
+          </Button>
           <Button
             style={{ marginRight: '10px', backgroundColor: 'lightgray', color: 'black', whiteSpace: 'nowrap' }}
             onClick={handleClick}
@@ -398,69 +441,90 @@ export default function ResponsiveDialog() {
             Save
           </Button>
           <Button
-            style={{ marginRight: '10px', backgroundColor: 'lightgray', color: 'black', whiteSpace: 'nowrap' }}
-            onClick={handleDeleteRows}
+            style={{ backgroundColor: 'lightgray', color: 'black', whiteSpace: 'nowrap' }}
+            onClick={navigateToItemMaster}
           >
-            Delete
-          </Button>
-          <Button
-            style={{ marginRight: '10px', backgroundColor: 'lightgray', color: 'black', whiteSpace: 'nowrap' }}
-            onClick={handleAddRow}
-          >
-            Add Lines
-          </Button>
-          <Button style={{ backgroundColor: 'lightgray', color: 'black', whiteSpace: 'nowrap' }} onClick={newEntry}>
-            New Item
+            Back
           </Button>
         </Grid>
       </Grid>
 
-      <form className="form-horizontal" style={{ marginTop: '20px' }}>
-        <div className="table-responsive">
-          <table className="table table-bordered table-striped table-highlight">
-            <thead>
-              <tr>
-                <th>
-                  <input
-                    type="checkbox"
-                    onChange={() => {
-                      // Select or deselect all rows
-                      const allRowsSelected = selectedRows.length === rows.length;
-                      const newSelectedRows = allRowsSelected ? [] : rows.map((_, index) => index);
-                      setSelectedRows(newSelectedRows);
-                    }}
-                    checked={selectedRows.length === rows.length && rows.length !== 0}
-                  />
-                </th>
-                {/* <th style={{ whiteSpace: 'nowrap' }}>
+      <Dialog open={open} onClose={handleClose} fullScreen>
+        <DialogContent>
+          <Grid
+            container
+            spacing={2}
+            style={{ display: 'flex', flexDirection: 'column', marginTop: '1rem' }}
+            className="indexing"
+          >
+            <Grid>
+              <Button
+                style={{ marginRight: '10px', backgroundColor: 'lightgray', color: 'black', whiteSpace: 'nowrap' }}
+                onClick={handleDeleteRows}
+              >
+                Delete Lines
+              </Button>
+              <Button
+                style={{ marginRight: '10px', backgroundColor: 'lightgray', color: 'black', whiteSpace: 'nowrap' }}
+                onClick={handleAddRow}
+              >
+                Add Lines
+              </Button>
+              <Button
+                style={{ marginRight: '10px', backgroundColor: 'lightgray', color: 'black', whiteSpace: 'nowrap' }}
+                onClick={handleClose}
+              >
+                Back
+              </Button>
+            </Grid>
+
+            <Grid>
+              <form className="form-horizontal" style={{ marginTop: '20px' }}>
+                <div className="table-responsive">
+                  <table className="table table-bordered table-striped table-highlight">
+                    <thead>
+                      <tr>
+                        <th>
+                          <input
+                            type="checkbox"
+                            onChange={() => {
+                              // Select or deselect all rows
+                              const allRowsSelected = selectedRows.length === rows.length;
+                              const newSelectedRows = allRowsSelected ? [] : rows.map((_, index) => index);
+                              setSelectedRows(newSelectedRows);
+                            }}
+                            checked={selectedRows.length === rows.length && rows.length !== 0}
+                          />
+                        </th>
+                        {/* <th style={{ whiteSpace: 'nowrap' }}>
                   {sentenceCase('inventory_item_id')} <span style={{ color: 'red' }}>*</span>
                 </th> */}
-                <th style={{ whiteSpace: 'nowrap', width: '150px' }}>
-                  {sentenceCase('inventory_item_code')} <span style={{ color: 'red' }}>*</span>
-                </th>
-                <th style={{ whiteSpace: 'nowrap', width: '250px' }}>{sentenceCase('description')}</th>
-                {/* <th style={{ whiteSpace: 'nowrap', width: '250px' }}>{sentenceCase('Category')}</th>
+                        <th style={{ whiteSpace: 'nowrap', width: '150px' }}>
+                          {sentenceCase('inventory_item_code')} <span style={{ color: 'red' }}>*</span>
+                        </th>
+                        <th style={{ whiteSpace: 'nowrap', width: '250px' }}>{sentenceCase('description')}</th>
+                        {/* <th style={{ whiteSpace: 'nowrap', width: '250px' }}>{sentenceCase('Category')}</th>
                 <th style={{ whiteSpace: 'nowrap', width: '75px' }}>UOM</th> */}
-                <th style={{ whiteSpace: 'nowrap', width: '125px' }}>
-                  {sentenceCase('enabled_flag')} <span style={{ color: 'red' }}>*</span>
-                </th>
-                <th style={{ whiteSpace: 'nowrap' }}>{sentenceCase('start_date_active')}</th>
-                <th style={{ whiteSpace: 'nowrap' }}>{sentenceCase('end_date_active')}</th>
-                <th style={{ whiteSpace: 'nowrap' }}>{sentenceCase('upload_image')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {showLines &&
-                rows.map((row, index) => (
-                  <tr key={index}>
-                    <td>
-                      <input
-                        type="checkbox"
-                        onChange={() => handleRowSelect(index, row)}
-                        checked={selectedRows.includes(index)}
-                      />
-                    </td>
-                    {/* <td>
+                        <th style={{ whiteSpace: 'nowrap', width: '125px' }}>
+                          {sentenceCase('enabled_flag')} <span style={{ color: 'red' }}>*</span>
+                        </th>
+                        <th style={{ whiteSpace: 'nowrap' }}>{sentenceCase('start_date_active')}</th>
+                        <th style={{ whiteSpace: 'nowrap' }}>{sentenceCase('end_date_active')}</th>
+                        <th style={{ whiteSpace: 'nowrap' }}>{sentenceCase('upload_image')}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {showLines &&
+                        rows.map((row, index) => (
+                          <tr key={index}>
+                            <td>
+                              <input
+                                type="checkbox"
+                                onChange={() => handleRowSelect(index, row)}
+                                checked={selectedRows.includes(index)}
+                              />
+                            </td>
+                            {/* <td>
                       <input
                         required
                         type="number"
@@ -471,26 +535,26 @@ export default function ResponsiveDialog() {
                         onChange={(e) => handleInputChange(index, e.target.name, e.target.value)}
                       />
                     </td> */}
-                    <td>
-                      <input
-                        required
-                        name="inventoryItemCode"
-                        className="form-control"
-                        title="Maximum 40 characters are allowed."
-                        style={{ backgroundColor: 'white', width: '150px' }}
-                        onChange={(e) => handleInputChange(index, e.target.name, e.target.value)}
-                      />
-                    </td>
-                    <td>
-                      <textarea
-                        name="description"
-                        className="form-control"
-                        title="Maximum 240 characters are allowed."
-                        style={{ height: '30px', width: '250px' }}
-                        onChange={(e) => handleInputChange(index, e.target.name, e.target.value)}
-                      />
-                    </td>
-                    {/* <td style={{ width: '250px' }}>
+                            <td>
+                              <input
+                                required
+                                name="inventoryItemCode"
+                                className="form-control"
+                                title="Maximum 40 characters are allowed."
+                                style={{ backgroundColor: 'white', width: '150px' }}
+                                onChange={(e) => handleInputChange(index, e.target.name, e.target.value)}
+                              />
+                            </td>
+                            <td>
+                              <textarea
+                                name="description"
+                                className="form-control"
+                                title="Maximum 240 characters are allowed."
+                                style={{ height: '30px', width: '250px' }}
+                                onChange={(e) => handleInputChange(index, e.target.name, e.target.value)}
+                              />
+                            </td>
+                            {/* <td style={{ width: '250px' }}>
                       <Select
                         // value={selectedItemCategories}
                         // onChange={handleItemCategoriesChange}
@@ -510,49 +574,61 @@ export default function ResponsiveDialog() {
                         onChange={(e) => handleInputChange(index, e.target.name, e.target.value)}
                       />
                     </td> */}
-                    <td>
-                      <input
-                        required
-                        name="enabledFlag"
-                        className="form-control"
-                        title="Maximum 1 character is allowed."
-                        style={{ backgroundColor: 'white', width: '125px' }}
-                        onChange={(e) => handleInputChange(index, e.target.name, e.target.value)}
-                      />
-                    </td>
-                    <td>
-                      <input
-                        type="date"
-                        name="startDateActive"
-                        className="form-control"
-                        style={{ backgroundColor: 'white' }}
-                        onChange={(e) => handleInputChange(index, e.target.name, e.target.value)}
-                      />
-                    </td>
-                    <td>
-                      <input
-                        type="date"
-                        name="endDateActive"
-                        className="form-control"
-                        style={{ backgroundColor: 'white' }}
-                        onChange={(e) => handleInputChange(index, e.target.name, e.target.value)}
-                      />
-                    </td>
-                    <td>
-                      <input
-                        type="file"
-                        name="child"
-                        className="form-control"
-                        style={{ backgroundColor: 'white' }}
-                        onChange={(e) => uplodPhoto(e, index)}
-                      />
-                    </td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
-        </div>
-      </form>
+                            <td>
+                              <input
+                                required
+                                name="enabledFlag"
+                                className="form-control"
+                                title="Maximum 1 character is allowed."
+                                style={{ backgroundColor: 'white', width: '125px' }}
+                                onChange={(e) => handleInputChange(index, e.target.name, e.target.value)}
+                              />
+                            </td>
+                            <td>
+                              <input
+                                type="date"
+                                name="startDateActive"
+                                className="form-control"
+                                style={{ backgroundColor: 'white' }}
+                                onChange={(e) => handleInputChange(index, e.target.name, e.target.value)}
+                              />
+                            </td>
+                            <td>
+                              <input
+                                type="date"
+                                name="endDateActive"
+                                className="form-control"
+                                style={{ backgroundColor: 'white' }}
+                                onChange={(e) => handleInputChange(index, e.target.name, e.target.value)}
+                              />
+                            </td>
+                            <td>
+                              <input
+                                type="file"
+                                name="child"
+                                className="form-control"
+                                style={{ backgroundColor: 'white' }}
+                                onChange={(e) => uplodPhoto(e, index)}
+                              />
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              </form>
+            </Grid>
+          </Grid>
+        </DialogContent>
+      </Dialog>
+
+      <Backdrop
+        sx={(theme) => ({ color: '#fff', zIndex: theme.zIndex.drawer + 1 })}
+        open={openImageUploading}
+        // onClick={handleCloseImageUploading}
+      >
+        <CircularProgress color="inherit" />
+      </Backdrop>
     </Container>
   );
 }
